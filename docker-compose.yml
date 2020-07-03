@@ -1,0 +1,21 @@
+version: '3.7'
+services:
+    # ngrok:
+    #     build: ./ngrok
+    #     container_name: ngrok
+    #     restart: unless-stopped
+    #     command: /bin/sh -c "ngrok authtoken ${ngrok_auth} && ngrok http notebook_server:8888 -subdomain=distortedlogic"
+    notebook-server:
+        build:
+            context: .
+            # dockerfile: Dockerfile
+            dockerfile: experimental.Dockerfile
+        container_name: notebook_server
+        restart: unless-stopped
+        command: jupyter lab
+        volumes:
+            - .:/notebooks
+        env_file:
+            - ./.env
+        ports:
+            - 8888:8888
