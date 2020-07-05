@@ -15,7 +15,6 @@ class Trainer:
     def train(self, model, epochs, trainset, testset):
         step = 0
         for _ in tqdm.tqdm(range(epochs)):
-            # training phase
             for datum in trainset:
                 step += 1
                 datum = tf.reshape(datum, (datum.shape[0], -1))
@@ -35,7 +34,6 @@ class Trainer:
             _, flat = model(datum)
             self.write_image(flat, step, train=False)
 
-            # write checkpoint
             model.save_weights(self.ckpt_path)
 
     def write_summary(self, metrics, step, train=True):
@@ -45,13 +43,10 @@ class Trainer:
                 tf.summary.scalar(key, value, step=step)
 
     def write_image(self, flat, step, train=True, name='image'):
-        # random index
         idx = np.random.randint(flat.shape[0])
-        # denormalize image
         image = tf.clip_by_value(flat[idx], -1, 1)
         summary = self.train_summary if train else self.test_summary
         with summary.as_default():
-            # write tensorboard summary
             tf.summary.image(
                 name,
                 tf.reshape(image[:784], (1, 28, 28, 1)),

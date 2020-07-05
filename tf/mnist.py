@@ -3,13 +3,6 @@ import tensorflow as tf
 
 
 class MNIST:
-    """MNIST dataset wrapper.
-    Attributes:
-        x_train: np.ndarray, [B, 784(=28 * 28)], dataset for training.
-        x_test: np.ndarray, [B, 784(=28 * 28)], dataset for testing.
-        y_train: np.ndarray, [B], label for training, 0 ~ 9.
-        y_test: np.ndarray, [B], label for testing, 0 ~ 9.
-    """
     def __init__(self):
         mnist = tf.keras.datasets.mnist
         (x_train, y_train), (x_test, y_test) = mnist.load_data()

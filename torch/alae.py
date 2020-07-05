@@ -10,12 +10,11 @@ mse = nn.MSELoss()
 device = torch.device("cuda:0")
 
 class ALAE(nn.Module):
-
     def __init__(self):
         super(ALAE, self).__init__()
         self.z_dim = 128
         self.latent_dim = 50
-        self.output_dim = 784
+        self.output_dim = 784 + 10
         self.gamma = 10
 
         self.lr = 0.002
@@ -29,12 +28,19 @@ class ALAE(nn.Module):
         )
 
         self.g = nn.Sequential(
+            # nn.ConvTranspose2d(4, 16, 2, stride=2),
+            # nn.ConvTranspose2d(16, 3, 2, stride=2),
             nn.Linear(self.latent_dim, 1024),
             nn.ReLU(True),
             nn.Linear(1024, self.output_dim)
         )
-
         self.e = nn.Sequential(
+            # nn.Conv2d(1, 8, 3, padding=1),
+            # nn.ReLU(True),
+            # nn.MaxPool2d(2, 2),
+            # nn.Conv2d(16, 4, 3, padding=1),
+            # nn.ReLU(True),
+            # nn.MaxPool2d(2, 2),
             nn.Linear(self.output_dim, 1024),
             nn.ReLU(True),
             nn.Linear(1024, self.latent_dim)
@@ -141,21 +147,19 @@ class ALAE(nn.Module):
             'total_loss': loss_d_float + loss_g_float + loss_l_float
         }
 
-    def train(self, train_loader, test_loader, epochs = 2):
-        step = 0
+    def train(self, train_loader, test_loader, epochs = 50):
         train_history = []
         for epoch in tqdm(range(epochs)):
+            losses = {}
             for idx, (img_tensors, target) in enumerate(train_loader):
-                if idx > 1000:
-                    break
-                nn_input = torch.flatten(img_tensors, start_dim=1).to(device)
+                flat_img = torch.reshape(img_tensors.to(device), (-1, 784))
+                eye = torch.tensor(np.eye(10)[target], dtype=torch.float).to(device)
+                nn_input = torch.cat([flat_img, eye], dim=-1)
                 nn_input.requires_grad = True
                 losses = self.train_step(nn_input)
-                if idx % 50 == 0:
-                    losses['epoch'] = epoch
-                    losses['step'] = step
-                    train_history.append(losses)
-                step += 1
+
+            losses['epoch'] = epoch
+            train_history.append(losses)
 
             test_history = []
             # for idx, (img_tensors, target) in enumerate(test_loader):
