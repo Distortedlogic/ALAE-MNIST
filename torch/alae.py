@@ -1,4 +1,3 @@
-from torch import mean
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,7 +5,6 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-mse = nn.MSELoss()
 device = torch.device("cuda:0")
 
 class ALAE(nn.Module):
@@ -83,20 +81,26 @@ class ALAE(nn.Module):
         self.to(device)
 
     def discriminator_loss(self, z, x):
-        fake_loss = (nn.Softplus()(self.fakepass(z))).mean(dim=0)
-        real_loss = (nn.Softplus()(-self.realpass(x))).mean(dim=0)
-        real_grads = torch.autograd.grad(real_loss, x, create_graph=True, retain_graph=True)[0]
-        r1_penalty = torch.sum(real_grads.pow(2.0))
+        fake_loss = torch.mean(F.softplus(self.fakepass(z)), -1)
+        real_loss = torch.mean(F.softplus(-self.realpass(x)), -1)
+        real_grads = torch.autograd.grad(
+            real_loss,
+            x,
+            grad_outputs=torch.ones_like(real_loss),
+            create_graph=True,
+            retain_graph=True
+        )[0]
+        r1_penalty = torch.sum(real_grads.pow(2.0), dim=[1, 2, 3])
         loss = fake_loss + real_loss + r1_penalty * self.gamma / 2
         return loss
 
     def generator_loss(self, z):
-        return F.softplus(-self.fakepass(z)).mean()
+        return torch.mean(F.softplus(-self.fakepass(z)), -1)
 
     def latent_loss(self, z):
         latent = self.f(z)
         recovered = self.latentpass(z)
-        return mse(latent, recovered)
+        return (latent - recovered).pow(2.0)
 
     def losses(self, x):
         bsize = x.shape[0]
@@ -123,38 +127,37 @@ class ALAE(nn.Module):
 
         self.ed_opt.zero_grad()
         loss_d = self.discriminator_loss(z, x)
-        loss_d.backward()
+        loss_d.backward(torch.ones_like(loss_d))
         self.ed_opt.step()
 
         self.fg_opt.zero_grad()
         loss_g = self.generator_loss(z)
-        loss_g.backward()
+        loss_g.backward(torch.ones_like(loss_g))
         self.fg_opt.step()
 
         self.ed_opt.zero_grad()
         loss_l = self.latent_loss(z)
-        loss_l.backward()
+        loss_l.backward(torch.ones_like(loss_l))
         self.eg_opt.step()
 
-        loss_d_float = loss_d.detach()[0].item()
-        loss_g_float = loss_g.detach().item()
-        loss_l_float = loss_l.detach().item()
+        loss_d_float = loss_d.detach()
+        loss_g_float = loss_g.detach()
+        loss_l_float = loss_l.detach()
 
         return {
             'loss_d': loss_d_float,
             'loss_g': loss_g_float,
             'loss_l': loss_l_float,
-            'total_loss': loss_d_float + loss_g_float + loss_l_float
         }
 
-    def train(self, train_loader, test_loader, epochs = 50):
+    def train(self, train_loader, test_loader, epochs = 1):
         train_history = []
         for epoch in tqdm(range(epochs)):
             losses = {}
             for idx, (img_tensors, target) in enumerate(train_loader):
                 flat_img = torch.reshape(img_tensors.to(device), (-1, 784))
-                eye = torch.tensor(np.eye(10)[target], dtype=torch.float).to(device)
-                nn_input = torch.cat([flat_img, eye], dim=-1)
+                labels = torch.tensor(np.eye(10)[target], dtype=torch.float).to(device)
+                nn_input = torch.cat([flat_img, labels], dim=-1)
                 nn_input.requires_grad = True
                 losses = self.train_step(nn_input)
 
