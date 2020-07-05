@@ -90,7 +90,7 @@ class ALAE(nn.Module):
             create_graph=True,
             retain_graph=True
         )[0]
-        r1_penalty = torch.sum(real_grads.pow(2.0), dim=[1, 2, 3])
+        r1_penalty = torch.sum(real_grads.pow(2.0), 1)
         loss = fake_loss + real_loss + r1_penalty * self.gamma / 2
         return loss
 
@@ -150,7 +150,7 @@ class ALAE(nn.Module):
             'loss_l': loss_l_float,
         }
 
-    def train(self, train_loader, test_loader, epochs = 1):
+    def fit(self, train_loader, test_loader, epochs = 1):
         train_history = []
         for epoch in tqdm(range(epochs)):
             losses = {}
