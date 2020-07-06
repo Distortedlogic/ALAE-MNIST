@@ -16,6 +16,14 @@ class View(nn.Module):
     def forward(self, x):
         return x.reshape(x.shape[0], *self.shape)
 
+class ShowShape(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        print(x.shape)
+        return x
+
 class ALAE(nn.Module):
     def __init__(self):
         super(ALAE, self).__init__()
@@ -32,16 +40,16 @@ class ALAE(nn.Module):
             nn.Linear(self.z_dim, 1024),
             nn.ReLU(True),
             nn.Linear(1024, self.latent_dim),
-            View((8, 2, 2))
         )
 
         self.g = nn.Sequential(
+            View((8, 2, 2)),
             nn.ConvTranspose2d(8, 16, 3, stride=2),  # b, 16, 5, 5
             nn.ReLU(True),
             nn.ConvTranspose2d(16, 8, 5, stride=3, padding=1),  # b, 8, 15, 15
             nn.ReLU(True),
             nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1),  # b, 1, 28, 28
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
         self.e = nn.Sequential(
@@ -51,7 +59,8 @@ class ALAE(nn.Module):
             nn.Conv2d(16, 8, 3, stride=2, padding=1),  # b, 8, 3, 3
             nn.ReLU(True),
             nn.MaxPool2d(2, stride=1),  # b, 8, 2, 2
-            nn.Flatten(start_dim=1)
+            nn.Flatten(start_dim=1),
+            
         )
 
         # self.g = nn.Sequential(
@@ -157,7 +166,7 @@ class ALAE(nn.Module):
         loss_g.backward(torch.ones_like(loss_g))
         self.fg_opt.step()
 
-        self.ed_opt.zero_grad()
+        self.eg_opt.zero_grad()
         loss_l = self.latent_loss(z)
         loss_l.backward(torch.ones_like(loss_l))
         self.eg_opt.step()
