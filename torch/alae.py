@@ -90,7 +90,7 @@ class ALAE(nn.Module):
             create_graph=True,
             retain_graph=True
         )[0]
-        r1_penalty = torch.sum(real_grads.pow(2.0), 1)
+        r1_penalty = torch.sum(real_grads.pow(2.0), -1)
         loss = fake_loss + real_loss + r1_penalty * self.gamma / 2
         return loss
 
@@ -135,7 +135,7 @@ class ALAE(nn.Module):
         loss_g.backward(torch.ones_like(loss_g))
         self.fg_opt.step()
 
-        self.ed_opt.zero_grad()
+        self.eg_opt.zero_grad()
         loss_l = self.latent_loss(z)
         loss_l.backward(torch.ones_like(loss_l))
         self.eg_opt.step()
