@@ -1,3 +1,4 @@
+from torch import reshape
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,11 +8,19 @@ from tqdm import tqdm
 
 device = torch.device("cuda:0")
 
+class View(nn.Module):
+    def __init__(self, shape):
+        super().__init__()
+        self.shape = shape
+
+    def forward(self, x):
+        return x.reshape(x.shape[0], *self.shape)
+
 class ALAE(nn.Module):
     def __init__(self):
         super(ALAE, self).__init__()
         self.z_dim = 128
-        self.latent_dim = 50
+        self.latent_dim = 32
         self.output_dim = 784 + 10
         self.gamma = 10
 
@@ -22,29 +31,42 @@ class ALAE(nn.Module):
         self.f = nn.Sequential(
             nn.Linear(self.z_dim, 1024),
             nn.ReLU(True),
-            nn.Linear(1024, self.latent_dim)
+            nn.Linear(1024, self.latent_dim),
+            View((8, 2, 2))
         )
 
         self.g = nn.Sequential(
-            # nn.ConvTranspose2d(4, 16, 2, stride=2),
-            # nn.ConvTranspose2d(16, 3, 2, stride=2),
-            nn.Linear(self.latent_dim, 1024),
+            nn.ConvTranspose2d(8, 16, 3, stride=2),  # b, 16, 5, 5
             nn.ReLU(True),
-            nn.Linear(1024, self.output_dim)
-        )
-        self.e = nn.Sequential(
-            # nn.Conv2d(1, 8, 3, padding=1),
-            # nn.ReLU(True),
-            # nn.MaxPool2d(2, 2),
-            # nn.Conv2d(16, 4, 3, padding=1),
-            # nn.ReLU(True),
-            # nn.MaxPool2d(2, 2),
-            nn.Linear(self.output_dim, 1024),
+            nn.ConvTranspose2d(16, 8, 5, stride=3, padding=1),  # b, 8, 15, 15
             nn.ReLU(True),
-            nn.Linear(1024, self.latent_dim)
+            nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1),  # b, 1, 28, 28
+            nn.Sigmoid()
         )
 
+        self.e = nn.Sequential(
+            nn.Conv2d(1, 16, 3, stride=3, padding=1),  # b, 16, 10, 10
+            nn.ReLU(True),
+            nn.MaxPool2d(2, stride=2),  # b, 16, 5, 5
+            nn.Conv2d(16, 8, 3, stride=2, padding=1),  # b, 8, 3, 3
+            nn.ReLU(True),
+            nn.MaxPool2d(2, stride=1),  # b, 8, 2, 2
+            nn.Flatten(start_dim=1)
+        )
+
+        # self.g = nn.Sequential(
+        #     nn.Linear(self.latent_dim, 1024),
+        #     nn.ReLU(True),
+        #     nn.Linear(1024, self.output_dim)
+        # )
+        # self.e = nn.Sequential(
+        #     nn.Linear(self.output_dim, 1024),
+        #     nn.ReLU(True),
+        #     nn.Linear(1024, self.latent_dim)
+        # )
+
         self.d = nn.Sequential(
+            # nn.Flatten(dim=1),
             nn.Linear(self.latent_dim, 1024),
             nn.ReLU(True),
             nn.Linear(1024, 1)
@@ -90,7 +112,7 @@ class ALAE(nn.Module):
             create_graph=True,
             retain_graph=True
         )[0]
-        r1_penalty = torch.sum(real_grads.pow(2.0), 1)
+        r1_penalty = torch.sum(real_grads.pow(2.0), (1,2,3))
         loss = fake_loss + real_loss + r1_penalty * self.gamma / 2
         return loss
 
@@ -98,7 +120,7 @@ class ALAE(nn.Module):
         return torch.mean(F.softplus(-self.fakepass(z)), -1)
 
     def latent_loss(self, z):
-        latent = self.f(z)
+        latent = torch.flatten(self.f(z), start_dim=1)
         recovered = self.latentpass(z)
         return (latent - recovered).pow(2.0)
 
@@ -155,11 +177,13 @@ class ALAE(nn.Module):
         for epoch in tqdm(range(epochs)):
             losses = {}
             for idx, (img_tensors, target) in enumerate(train_loader):
-                flat_img = torch.reshape(img_tensors.to(device), (-1, 784))
-                labels = torch.tensor(np.eye(10)[target], dtype=torch.float).to(device)
-                nn_input = torch.cat([flat_img, labels], dim=-1)
-                nn_input.requires_grad = True
-                losses = self.train_step(nn_input)
+                # flat_img = torch.reshape(img_tensors.to(device), (-1, 784))
+                # labels = torch.tensor(np.eye(10)[target], dtype=torch.float).to(device)
+                # nn_input = torch.cat([flat_img, labels], dim=-1)
+                # nn_input.requires_grad = True
+                img_tensors = img_tensors.to(device)
+                img_tensors.requires_grad = True
+                losses = self.train_step(img_tensors)
 
             losses['epoch'] = epoch
             train_history.append(losses)
