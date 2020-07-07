@@ -13,7 +13,7 @@ Without docker-compose
 
 or
 
-Without docker-compose
+With docker-compose
 
     docker-compose up --build
 
