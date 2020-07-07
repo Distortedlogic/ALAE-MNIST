@@ -6,10 +6,11 @@ Quick Start
 Clone the repo and cd into it.
 
 Without docker-compose
+
     docker build -t alae .
 
     docker run -p 8888:8888 -t test jupyter lab --allow-root
-    
+
 or
 
 Without docker-compose
