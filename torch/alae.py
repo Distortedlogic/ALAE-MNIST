@@ -1,4 +1,3 @@
-from torch import reshape
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,29 +5,13 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-device = torch.device("cuda:0")
-
-class View(nn.Module):
-    def __init__(self, shape):
-        super().__init__()
-        self.shape = shape
-
-    def forward(self, x):
-        return x.reshape(x.shape[0], *self.shape)
-
-class ShowShape(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        print(x.shape)
-        return x
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class ALAE(nn.Module):
     def __init__(self):
         super(ALAE, self).__init__()
         self.z_dim = 128
-        self.latent_dim = 32
+        self.latent_dim = 50
         self.output_dim = 784 + 10
         self.gamma = 10
 
@@ -39,24 +22,18 @@ class ALAE(nn.Module):
         self.to_latent = nn.Sequential(
             nn.Linear(self.z_dim, 1024),
             nn.ReLU(True),
-            nn.Linear(1024, self.latent_dim),
+            nn.Linear(1024, self.latent_dim)
         )
 
         self.generator = nn.Sequential(
             nn.Linear(self.latent_dim, 1024),
             nn.ReLU(True),
-            nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1),  # b, 1, 28, 28
-            nn.Sigmoid(),
+            nn.Linear(1024, self.output_dim)
         )
         self.encoder = nn.Sequential(
             nn.Linear(self.output_dim, 1024),
             nn.ReLU(True),
-            nn.MaxPool2d(2, stride=2),  # b, 16, 5, 5
-            nn.Conv2d(16, 8, 3, stride=2, padding=1),  # b, 8, 3, 3
-            nn.ReLU(True),
-            nn.MaxPool2d(2, stride=1),  # b, 8, 2, 2
-            nn.Flatten(start_dim=1),
-            
+            nn.Linear(1024, self.latent_dim)
         )
 
         self.discriminator = nn.Sequential(
@@ -105,7 +82,7 @@ class ALAE(nn.Module):
             create_graph=True,
             retain_graph=True
         )[0]
-        r1_penalty = torch.sum(real_grads.pow(2.0), (1,2,3))
+        r1_penalty = torch.sum(real_grads.pow(2.0), -1)
         loss = fake_loss + real_loss + r1_penalty * self.gamma / 2
         return loss
 
@@ -154,7 +131,7 @@ class ALAE(nn.Module):
         self.train()
         for epoch in tqdm(range(epochs)):
             losses = {}
-            for idx, (img_tensors, target) in enumerate(train_loader):
+            for (img_tensors, target) in iter(train_loader):
                 flat_img = torch.reshape(img_tensors.to(device), (-1, 784))
                 labels = torch.tensor(np.eye(10)[target], requires_grad=False, dtype=torch.float).to(device)
                 nn_input = torch.cat([flat_img, labels], dim=-1)
