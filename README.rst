@@ -19,4 +19,8 @@ Without docker-compose
 
 Copy and Paste the url with token from terminal output into your browser.
 
+example:
+
+    http://127.0.0.1:8888/?token=422ac908c97aae9d990baa9cb2ed5afdaa8ca4357a4b2e29
+
 cd into the torch folder and open pytorch.ipynb
