@@ -9,7 +9,7 @@ Without docker-compose
 
     docker build -t alae .
 
-    docker run -p 8888:8888 -t test jupyter lab --allow-root
+    docker run -p 8888:8888 -t alae jupyter lab --allow-root
 
 or
 
